@@ -1,4 +1,6 @@
 // Content script for Spocket product pages
+console.log('Spocket Content Script loaded on:', window.location.href);
+
 class SpocketExtractor {
   constructor() {
     this.productId = this.extractProductId();
