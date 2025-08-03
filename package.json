@@ -1,0 +1,13 @@
+{
+  "name": "spocket-image-extractor",
+  "version": "1.0.0",
+  "description": "A Chrome extension to extract and save product images and metadata from Spocket product pages.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": ["chrome", "extension", "spocket", "images"],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.14.0"
+}

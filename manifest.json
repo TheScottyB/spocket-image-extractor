@@ -1,0 +1,42 @@
+{
+  "manifest_version": 3,
+  "name": "Spocket Image Extractor",
+  "version": "1.0.0",
+  "description": "Extract and save product images and metadata from Spocket product pages",
+  
+  "permissions": [
+    "activeTab",
+    "downloads",
+    "scripting",
+    "storage"
+  ],
+  
+  "host_permissions": [
+    "https://app.spocket.co/*",
+    "https://d2nxps5jx3f309.cloudfront.net/*"
+  ],
+  
+  "background": {
+    "service_worker": "background.js"
+  },
+  
+  "content_scripts": [
+    {
+      "matches": ["https://app.spocket.co/product/*"],
+      "js": ["contentScript.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Extract Spocket Images"
+  },
+  
+  "icons": {
+    "16": "icon16.png",
+    "32": "icon32.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  }
+}

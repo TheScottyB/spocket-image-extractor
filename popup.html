@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spocket Image Extractor</title>
+    <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1 class="title">Spocket Image Extractor</h1>
+            <div class="status" id="status">Loading...</div>
+        </header>
+
+        <div class="content" id="content">
+            <!-- Loading state -->
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p>Scanning page for images...</p>
+            </div>
+
+            <!-- Error state -->
+            <div class="error hidden" id="error">
+                <div class="error-icon">⚠️</div>
+                <p class="error-message" id="errorMessage">An error occurred</p>
+                <button class="retry-btn" id="retryBtn">Retry</button>
+            </div>
+
+            <!-- Main content -->
+            <div class="main-content hidden" id="mainContent">
+                <!-- Metadata summary -->
+                <div class="metadata-section">
+                    <h2>Product Information</h2>
+                    <div class="metadata-grid">
+                        <div class="metadata-item">
+                            <label>Product Name:</label>
+                            <span id="productName">-</span>
+                        </div>
+                        <div class="metadata-item">
+                            <label>Vendor:</label>
+                            <span id="vendorName">-</span>
+                        </div>
+                        <div class="metadata-item">
+                            <label>Price:</label>
+                            <span id="price">-</span>
+                        </div>
+                        <div class="metadata-item">
+                            <label>Product ID:</label>
+                            <span id="productId">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Image selection -->
+                <div class="images-section">
+                    <div class="images-header">
+                        <h2>Images (<span id="imageCount">0</span>)</h2>
+                        <div class="selection-controls">
+                            <button class="select-all-btn" id="selectAllBtn">Select All</button>
+                            <button class="deselect-all-btn" id="deselectAllBtn">Deselect All</button>
+                        </div>
+                    </div>
+                    
+                    <div class="images-grid" id="imagesGrid">
+                        <!-- Images will be populated here -->
+                    </div>
+                </div>
+
+                <!-- Action buttons -->
+                <div class="actions">
+                    <div class="selected-count">
+                        <span id="selectedCount">0</span> images selected
+                    </div>
+                    <button class="download-btn" id="downloadBtn" disabled>
+                        <span class="btn-text">Save Selected Images</span>
+                        <div class="btn-spinner hidden"></div>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Success state -->
+            <div class="success hidden" id="success">
+                <div class="success-icon">✅</div>
+                <h2>Download Complete!</h2>
+                <div class="success-summary" id="successSummary">
+                    <p><span id="successCount">0</span> images downloaded successfully</p>
+                    <p>Metadata file saved</p>
+                </div>
+                <button class="done-btn" id="doneBtn">Done</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="popup.js"></script>
+</body>
+</html>
