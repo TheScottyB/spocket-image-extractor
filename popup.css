@@ -130,6 +130,14 @@ img.image-thumbnail.selected {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.action-buttons {
+    display: flex;
+    gap: 8px;
+    align-items: center;
 }
 
 .selected-count {
@@ -171,6 +179,26 @@ button:hover:not(:disabled) {
 
 .done-btn:hover:not(:disabled) {
     background-color: #4cae4c;
+}
+
+.force-retry-btn {
+    background-color: #ffc107;
+    color: #212529;
+    font-size: 12px;
+    padding: 6px 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+}
+
+.force-retry-btn:hover:not(:disabled) {
+    background-color: #e0a800;
+}
+
+.force-retry-btn:disabled {
+    background-color: #ccc;
+    color: #666;
 }
 
 /* AI Analysis Section */

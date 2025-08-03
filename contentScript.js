@@ -7,6 +7,63 @@ class SpocketExtractor {
     this.images = [];
     this.metadata = {};
     this.observer = null;
+    this.debug = true; // Enable debug logging
+    this.lastExtractionCount = 0;
+    this.extractionAttempts = 0;
+    this.domAgent = null;
+    this.visionDataCache = new Map();
+    
+    // Initialize MutationObserver for dynamic content
+    this.initMutationObserver();
+    this.initDOMAgent();
+  }
+  
+  initMutationObserver() {
+    this.observer = new MutationObserver((mutations) => {
+      const hasNewImages = mutations.some(mutation => {
+        return Array.from(mutation.addedNodes).some(node => {
+          if (node.nodeType === Node.ELEMENT_NODE) {
+            return node.tagName === 'IMG' || 
+                   node.querySelector && node.querySelector('img, picture, [style*="background-image"]');
+          }
+          return false;
+        });
+      });
+      
+      if (hasNewImages) {
+        this.debounceExtraction();
+      }
+    });
+  }
+  
+  startObserving() {
+    if (this.observer) {
+      this.observer.observe(document.body, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['src', 'style', 'data-src', 'srcset']
+      });
+      if (this.debug) console.log('SpocketExtractor: Started DOM observation');
+    }
+  }
+  
+  stopObserving() {
+    if (this.observer) {
+      this.observer.disconnect();
+      if (this.debug) console.log('SpocketExtractor: Stopped DOM observation');
+    }
+  }
+  
+  debounceExtraction() {
+    clearTimeout(this.extractionTimeout);
+    this.extractionTimeout = setTimeout(() => {
+      const newImages = this.extractImages();
+      if (newImages.length > this.lastExtractionCount) {
+        this.lastExtractionCount = newImages.length;
+        if (this.debug) console.log('SpocketExtractor: Found new images, total:', newImages.length);
+      }
+    }, 1000);
   }
 
   extractProductId() {
@@ -15,106 +72,341 @@ class SpocketExtractor {
     return match ? match[1] : null;
   }
 
-  // Wait for React components to load and images to be available
-  async waitForImages(timeout = 10000) {
+  // Enhanced wait logic with exponential backoff and event-based retries
+  async waitForImages(timeout = 30000) {
     return new Promise((resolve) => {
       const startTime = Date.now();
+      let attempt = 0;
+      let eventListenersAdded = false;
       
       const checkForImages = () => {
-        const images = document.querySelectorAll('.ril-image-next, .ril__imageNext, .ril__image');
+        attempt++;
+        const elapsed = Date.now() - startTime;
         
-        if (images.length > 0 || Date.now() - startTime > timeout) {
-          resolve(images.length > 0);
+        // Try multiple selectors to detect images
+        const imageSelectors = [
+          '.ril-image-next', '.ril__imageNext', '.ril__image',
+          'img[src*="d2nxps5jx3f309.cloudfront.net"]',
+          '.lightbox-image', '.modal-image', '.popup-image',
+          '[data-testid="feature-image"]', '.main-image', '.hero-image'
+        ];
+        
+        let totalImages = 0;
+        imageSelectors.forEach(selector => {
+          const images = document.querySelectorAll(selector);
+          totalImages += images.length;
+        });
+        
+        if (this.debug) {
+          console.log(`SpocketExtractor: Wait attempt #${attempt}, found ${totalImages} images after ${elapsed}ms`);
+        }
+        
+        if (totalImages > 0 || elapsed > timeout) {
+          if (eventListenersAdded) {
+            this.removeWaitEventListeners();
+          }
+          resolve(totalImages > 0);
           return;
         }
         
-        setTimeout(checkForImages, 500);
+        // Add event listeners on first attempt for dynamic content
+        if (!eventListenersAdded) {
+          this.addWaitEventListeners(checkForImages);
+          eventListenersAdded = true;
+        }
+        
+        // Exponential backoff: 500ms, 1s, 2s, 4s, 8s, then 8s intervals
+        const delays = [500, 1000, 2000, 4000, 8000];
+        const delay = delays[Math.min(attempt - 1, delays.length - 1)] || 8000;
+        
+        setTimeout(checkForImages, delay);
       };
       
       checkForImages();
     });
   }
+  
+  addWaitEventListeners(checkCallback) {
+    this.waitEventHandlers = {
+      scroll: () => {
+        if (this.debug) console.log('SpocketExtractor: Scroll detected, rechecking images');
+        setTimeout(checkCallback, 1000);
+      },
+      click: (e) => {
+        // Check if click might trigger image loading (buttons, tabs, etc.)
+        const target = e.target;
+        if (target.matches('button, .tab, .thumbnail, [role="button"], [role="tab"]')) {
+          if (this.debug) console.log('SpocketExtractor: Interactive element clicked, rechecking images');
+          setTimeout(checkCallback, 1500);
+        }
+      },
+      load: () => {
+        if (this.debug) console.log('SpocketExtractor: Image loaded, rechecking');
+        setTimeout(checkCallback, 500);
+      }
+    };
+    
+    // Add event listeners
+    window.addEventListener('scroll', this.waitEventHandlers.scroll, { passive: true });
+    document.addEventListener('click', this.waitEventHandlers.click, { passive: true });
+    document.addEventListener('load', this.waitEventHandlers.load, true); // Use capture for images
+    
+    if (this.debug) console.log('SpocketExtractor: Added wait event listeners');
+  }
+  
+  removeWaitEventListeners() {
+    if (this.waitEventHandlers) {
+      window.removeEventListener('scroll', this.waitEventHandlers.scroll);
+      document.removeEventListener('click', this.waitEventHandlers.click);
+      document.removeEventListener('load', this.waitEventHandlers.load, true);
+      
+      if (this.debug) console.log('SpocketExtractor: Removed wait event listeners');
+      this.waitEventHandlers = null;
+    }
+  }
+  
+  // Manual retry method for forced re-extraction
+  async forceRetry() {
+    if (this.debug) console.log('SpocketExtractor: Force retry requested');
+    
+    // Stop current observation
+    this.stopObserving();
+    
+    // Wait a bit for any pending operations
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // Start fresh extraction
+    this.startObserving();
+    const images = this.extractImages();
+    
+    if (this.debug) console.log(`SpocketExtractor: Force retry found ${images.length} images`);
+    
+    return { images, metadata: this.extractMetadata() };
+  }
 
   extractImages() {
     const uniqueUrls = new Set();
     this.images = []; // Reset images array
+    this.extractionAttempts++;
     
-    // 1. Look for React Image Lightbox images (original approach)
-    const rilImages = document.querySelectorAll('.ril-image-next, .ril__imageNext, .ril__image');
-    rilImages.forEach((img, index) => {
-      const src = img.src;
-      if (src && src.includes('d2nxps5jx3f309.cloudfront.net') && !uniqueUrls.has(src)) {
-        uniqueUrls.add(src);
-        
-        const urlParts = src.split('/');
-        const filename = urlParts[urlParts.length - 1] || `lightbox_image_${index + 1}.jpg`;
-        
-        this.images.push({
-          url: src,
-          filename: filename,
-          index: this.images.length,
-          alt: img.alt || `Lightbox Image ${index + 1}`,
-          type: 'lightbox'
-        });
-      }
-    });
-    
-    // 2. Look for feature/main product image
-    const featureImage = document.querySelector('[data-testid="feature-image"], .sc-kNvTSQ.fXwRYd');
-    if (featureImage && featureImage.src && featureImage.src.includes('d2nxps5jx3f309.cloudfront.net') && !uniqueUrls.has(featureImage.src)) {
-      uniqueUrls.add(featureImage.src);
-      
-      const urlParts = featureImage.src.split('/');
-      const filename = urlParts[urlParts.length - 1] || 'featured_image.jpg';
-      
-      this.images.push({
-        url: featureImage.src,
-        filename: filename,
-        index: this.images.length,
-        alt: featureImage.alt || 'Featured Product Image',
-        type: 'featured'
-      });
+    if (this.debug) {
+      console.group(`SpocketExtractor: Image extraction attempt #${this.extractionAttempts}`);
     }
     
-    // 3. Look for thumbnail images
-    const thumbnailImages = document.querySelectorAll('.sc-entYTK.knWYHm, [alt="thumbnail image"]');
-    thumbnailImages.forEach((img, index) => {
-      const src = img.src;
-      if (src && src.includes('d2nxps5jx3f309.cloudfront.net') && !uniqueUrls.has(src)) {
-        uniqueUrls.add(src);
-        
-        const urlParts = src.split('/');
-        const filename = urlParts[urlParts.length - 1] || `thumbnail_${index + 1}.jpg`;
-        
-        this.images.push({
-          url: src,
-          filename: filename,
-          index: this.images.length,
-          alt: img.alt || `Thumbnail ${index + 1}`,
-          type: 'thumbnail'
-        });
+    // Helper function to validate image URLs
+    const isValidImageUrl = (url) => {
+      if (!url) return false;
+      
+      // Support data URLs
+      if (url.startsWith('data:image/')) return true;
+      
+      // Check for valid image extensions
+      const imageExtensions = /\.(jpe?g|png|gif|webp|svg|bmp|ico)(\?.*)?$/i;
+      return imageExtensions.test(url) || url.includes('d2nxps5jx3f309.cloudfront.net');
+    };
+    
+    // Helper function to add image to collection
+    const addImageToCollection = (url, type, element, fallbackAlt = '', index = 0) => {
+      if (!isValidImageUrl(url) || uniqueUrls.has(url)) return false;
+      
+      uniqueUrls.add(url);
+      const urlParts = url.split('/');
+      const filename = urlParts[urlParts.length - 1] || `${type}_image_${index + 1}.jpg`;
+      
+      this.images.push({
+        url: url,
+        filename: filename,
+        index: this.images.length,
+        alt: element?.alt || element?.getAttribute?.('aria-label') || fallbackAlt,
+        type: type
+      });
+      
+      return true;
+    };
+    
+    // 1. React Image Lightbox images (original approach)
+    const rilSelectors = [
+      '.ril-image-next', '.ril__imageNext', '.ril__image',
+      '.lightbox-image', '.modal-image', '.popup-image'
+    ];
+    
+    rilSelectors.forEach(selector => {
+      const images = document.querySelectorAll(selector);
+      images.forEach((img, index) => {
+        if (addImageToCollection(img.src, 'lightbox', img, `Lightbox Image ${index + 1}`, index)) {
+          if (this.debug) console.log(`Found lightbox image: ${img.src}`);
+        }
+      });
+    });
+    
+    // 2. Feature/main product images
+    const featureSelectors = [
+      '[data-testid="feature-image"]', '.sc-kNvTSQ.fXwRYd',
+      '[data-testid="main-image"]', '[data-testid="hero-image"]',
+      '.main-image', '.hero-image', '.featured-image',
+      '[class*="main-image"]', '[class*="hero-image"]', '[class*="featured"]'
+    ];
+    
+    featureSelectors.forEach(selector => {
+      const img = document.querySelector(selector);
+      if (img && addImageToCollection(img.src, 'featured', img, 'Featured Product Image')) {
+        if (this.debug) console.log(`Found featured image: ${img.src}`);
       }
     });
     
-    // 4. Fallback: Check for any other product images from the CDN
-    const allImages = document.querySelectorAll('img[src*="d2nxps5jx3f309.cloudfront.net"]');
-    allImages.forEach((img, index) => {
-      const src = img.src;
-      if (!uniqueUrls.has(src)) {
-        uniqueUrls.add(src);
-        
-        const urlParts = src.split('/');
-        const filename = urlParts[urlParts.length - 1] || `product_image_${index + 1}.jpg`;
-        
-        this.images.push({
-          url: src,
-          filename: filename,
-          index: this.images.length,
-          alt: img.alt || `Product Image ${index + 1}`,
-          type: 'general'
-        });
+    // 3. Thumbnail images
+    const thumbnailSelectors = [
+      '.sc-entYTK.knWYHm', '[alt="thumbnail image"]',
+      '.thumbnail', '.thumb', '[class*="thumbnail"]', '[class*="thumb"]',
+      '.carousel-item img', '.slider-item img', '.gallery-thumb img'
+    ];
+    
+    thumbnailSelectors.forEach(selector => {
+      const images = document.querySelectorAll(selector);
+      images.forEach((img, index) => {
+        if (addImageToCollection(img.src, 'thumbnail', img, `Thumbnail ${index + 1}`, index)) {
+          if (this.debug) console.log(`Found thumbnail image: ${img.src}`);
+        }
+      });
+    });
+    
+    // 4. Picture elements and srcset handling
+    const pictureElements = document.querySelectorAll('picture');
+    pictureElements.forEach((picture, index) => {
+      const img = picture.querySelector('img');
+      const sources = picture.querySelectorAll('source[srcset]');
+      
+      // Try to get the highest resolution from srcset
+      let bestSrc = img?.src;
+      let maxWidth = 0;
+      
+      sources.forEach(source => {
+        const srcset = source.getAttribute('srcset');
+        if (srcset) {
+          const srcsetParts = srcset.split(',');
+          srcsetParts.forEach(part => {
+            const [url, descriptor] = part.trim().split(' ');
+            const width = descriptor ? parseInt(descriptor.replace('w', '')) : 0;
+            if (width > maxWidth) {
+              maxWidth = width;
+              bestSrc = url;
+            }
+          });
+        }
+      });
+      
+      if (addImageToCollection(bestSrc, 'picture', img, `Picture Element ${index + 1}`, index)) {
+        if (this.debug) console.log(`Found picture element image: ${bestSrc}`);
       }
     });
+    
+    // 5. Images with data attributes (lazy loading)
+    const lazySelectors = [
+      '[data-src]', '[data-lazy-src]', '[data-original]',
+      '[data-bg]', '[data-background]', '[data-hero-image]'
+    ];
+    
+    lazySelectors.forEach(selector => {
+      const elements = document.querySelectorAll(selector);
+      elements.forEach((el, index) => {
+        const dataSrc = el.getAttribute('data-src') || 
+                       el.getAttribute('data-lazy-src') || 
+                       el.getAttribute('data-original') ||
+                       el.getAttribute('data-bg') ||
+                       el.getAttribute('data-background') ||
+                       el.getAttribute('data-hero-image');
+        
+        if (addImageToCollection(dataSrc, 'lazy', el, `Lazy Image ${index + 1}`, index)) {
+          if (this.debug) console.log(`Found lazy-loaded image: ${dataSrc}`);
+        }
+      });
+    });
+    
+    // 6. Background images from inline styles
+    const allElements = document.querySelectorAll('*');
+    let bgImageCount = 0;
+    
+    allElements.forEach(el => {
+      const style = el.getAttribute('style');
+      if (style && style.includes('background-image')) {
+        const bgMatch = style.match(/background-image:\s*url\((["']?)(.*?)\1\)/);
+        if (bgMatch && bgMatch[2]) {
+          const bgUrl = bgMatch[2];
+          if (addImageToCollection(bgUrl, 'background', el, el.getAttribute('aria-label') || `Background Image ${bgImageCount + 1}`, bgImageCount)) {
+            bgImageCount++;
+            if (this.debug) console.log(`Found background image: ${bgUrl}`);
+          }
+        }
+      }
+    });
+    
+    // 7. SVG image elements
+    const svgImages = document.querySelectorAll('svg image[href], svg image[xlink\\:href]');
+    svgImages.forEach((img, index) => {
+      const href = img.getAttribute('href') || img.getAttribute('xlink:href');
+      if (addImageToCollection(href, 'svg', img, `SVG Image ${index + 1}`, index)) {
+        if (this.debug) console.log(`Found SVG image: ${href}`);
+      }
+    });
+    
+    // 8. Video poster images
+    const videos = document.querySelectorAll('video[poster]');
+    videos.forEach((video, index) => {
+      const poster = video.getAttribute('poster');
+      if (addImageToCollection(poster, 'video-poster', video, `Video Poster ${index + 1}`, index)) {
+        if (this.debug) console.log(`Found video poster: ${poster}`);
+      }
+    });
+    
+    // 9. Images in hidden/modal containers
+    const hiddenSelectors = [
+      '.modal img', '.dialog img', '.popup img',
+      '[aria-hidden="true"] img', '.hidden img',
+      '[style*="display: none"] img', '[style*="visibility: hidden"] img'
+    ];
+    
+    hiddenSelectors.forEach(selector => {
+      const images = document.querySelectorAll(selector);
+      images.forEach((img, index) => {
+        if (addImageToCollection(img.src, 'hidden', img, `Hidden Image ${index + 1}`, index)) {
+          if (this.debug) console.log(`Found hidden image: ${img.src}`);
+        }
+      });
+    });
+    
+    // 10. Comprehensive fallback - all images with any image-related attributes or classes
+    const comprehensiveSelectors = [
+      'img', // All img tags
+      '[class*="image"]', '[class*="img"]', // Class contains "image" or "img"
+      '[id*="image"]', '[id*="img"]', // ID contains "image" or "img"
+      '[src*=".jpg"]', '[src*=".jpeg"]', '[src*=".png"]', '[src*=".gif"]', '[src*=".webp"]', '[src*=".svg"]' // Source contains image extensions
+    ];
+    
+    const fallbackImages = new Set();
+    comprehensiveSelectors.forEach(selector => {
+      try {
+        const elements = document.querySelectorAll(selector);
+        elements.forEach(el => fallbackImages.add(el));
+      } catch (e) {
+        if (this.debug) console.warn(`Invalid selector: ${selector}`, e);
+      }
+    });
+    
+    fallbackImages.forEach((el, index) => {
+      const src = el.src || el.getAttribute('data-src') || el.getAttribute('href');
+      if (addImageToCollection(src, 'fallback', el, `Fallback Image ${index + 1}`, index)) {
+        if (this.debug) console.log(`Found fallback image: ${src}`);
+      }
+    });
+    
+    if (this.debug) {
+      console.log(`Total unique images found: ${this.images.length}`);
+      console.log('Image types:', this.images.reduce((acc, img) => {
+        acc[img.type] = (acc[img.type] || 0) + 1;
+        return acc;
+      }, {}));
+      console.groupEnd();
+    }
     
     return this.images;
   }
@@ -371,13 +663,35 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     });
     return true; // Keep message channel open for async response
   }
+  
+  if (request.action === 'forceRetry') {
+    extractor.forceRetry().then(data => {
+      sendResponse(data);
+    }).catch(error => {
+      console.error('Spocket Extractor Force Retry Error:', error);
+      sendResponse({ error: error.message, images: [], metadata: {} });
+    });
+    return true; // Keep message channel open for async response
+  }
+  
+  if (request.action === 'startObserving') {
+    extractor.startObserving();
+    sendResponse({ success: true });
+  }
+  
+  if (request.action === 'stopObserving') {
+    extractor.stopObserving();
+    sendResponse({ success: true });
+  }
 });
 
-// Auto-extract when page loads (for development/debugging)
+// Auto-start observation and extract when page loads
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', () => {
+    extractor.startObserving();
     setTimeout(() => extractor.extractAll(), 2000);
   });
 } else {
+  extractor.startObserving();
   setTimeout(() => extractor.extractAll(), 2000);
 }

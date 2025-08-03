@@ -23,6 +23,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const downloadBtn = document.getElementById('downloadBtn');
     const selectAllBtn = document.getElementById('selectAllBtn');
     const deselectAllBtn = document.getElementById('deselectAllBtn');
+    const forceRetryBtn = document.getElementById('forceRetryBtn');
     
     // AI Analysis elements
     const aiAnalyzeBtn = document.getElementById('aiAnalyzeBtn');
@@ -354,6 +355,65 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (aiResults) aiResults.classList.add('hidden');
                 }
             });
+        });
+    }
+    
+    if (forceRetryBtn) {
+        forceRetryBtn.addEventListener('click', async function() {
+            const btnText = forceRetryBtn.querySelector('.btn-text');
+            const btnSpinner = forceRetryBtn.querySelector('.btn-spinner');
+            
+            if (btnText) btnText.textContent = '🔄 Retrying...';
+            if (btnSpinner) btnSpinner.classList.remove('hidden');
+            forceRetryBtn.disabled = true;
+
+            try {
+                const data = await sendMessageToContentScript({ action: 'forceRetry' });
+                if (data.error) {
+                    showError(`Force retry failed: ${data.error}`);
+                    return;
+                }
+                
+                images = data.images || [];
+                metadata = data.metadata || {};
+                
+                // Clear current selections
+                selectedImages.clear();
+                
+                // Update metadata display
+                if (productNameElement) productNameElement.textContent = metadata.productName || 'N/A';
+                if (vendorNameElement) vendorNameElement.textContent = metadata.vendorName || 'N/A';
+                if (priceElement) priceElement.textContent = metadata.price || 'N/A';
+                if (productIdElement) productIdElement.textContent = metadata.productId || 'N/A';
+                
+                // Show/hide optional metadata fields
+                if (metadata.storeStatus) {
+                    if (storeStatusElement) storeStatusElement.textContent = metadata.storeStatus;
+                    if (storeStatusContainer) storeStatusContainer.style.display = 'block';
+                } else {
+                    if (storeStatusContainer) storeStatusContainer.style.display = 'none';
+                }
+                
+                if (metadata.marketplaceInfo) {
+                    if (marketplaceInfoElement) marketplaceInfoElement.textContent = metadata.marketplaceInfo;
+                    if (marketplaceContainer) marketplaceContainer.style.display = 'block';
+                } else {
+                    if (marketplaceContainer) marketplaceContainer.style.display = 'none';
+                }
+
+                // Render updated images
+                renderImages(images);
+                showMainContent();
+                
+                showNotification(`Force retry completed! Found ${images.length} images.`);
+                
+            } catch (error) {
+                showError('Force retry failed: ' + error.message);
+            } finally {
+                if (btnText) btnText.textContent = '🔄 Force Retry';
+                if (btnSpinner) btnSpinner.classList.add('hidden');
+                forceRetryBtn.disabled = false;
+            }
         });
     }
 
