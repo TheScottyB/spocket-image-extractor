@@ -60,6 +60,43 @@
                     </div>
                 </div>
 
+                <!-- AI Analysis Section -->
+                <div class="ai-section">
+                    <h2>AI Product Analysis</h2>
+                    <div class="ai-controls">
+                        <button class="ai-analyze-btn" id="aiAnalyzeBtn">
+                            <span class="btn-text">Analyze Product</span>
+                            <div class="btn-spinner hidden"></div>
+                        </button>
+                        <button class="api-key-btn" id="apiKeyBtn">Set API Key</button>
+                    </div>
+                    <div class="ai-results hidden" id="aiResults">
+                        <h3>AI Analysis Results:</h3>
+                        <div class="ai-description" id="aiDescription"></div>
+                    </div>
+                    <div class="ai-error hidden" id="aiError">
+                        <div class="error-message" id="aiErrorMessage"></div>
+                    </div>
+                </div>
+
+                <!-- API Key Modal -->
+                <div class="modal hidden" id="apiKeyModal">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h3>Set OpenAI API Key</h3>
+                            <button class="modal-close" id="modalClose">&times;</button>
+                        </div>
+                        <div class="modal-body">
+                            <p>Enter your OpenAI API key to enable AI product analysis:</p>
+                            <input type="password" id="apiKeyInput" placeholder="sk-..." class="api-key-input">
+                            <div class="modal-actions">
+                                <button class="save-key-btn" id="saveKeyBtn">Save Key</button>
+                                <button class="cancel-btn" id="cancelBtn">Cancel</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Image selection -->
                 <div class="images-section">
                     <div class="images-header">

@@ -23,6 +23,21 @@ document.addEventListener('DOMContentLoaded', function() {
     const downloadBtn = document.getElementById('downloadBtn');
     const selectAllBtn = document.getElementById('selectAllBtn');
     const deselectAllBtn = document.getElementById('deselectAllBtn');
+    
+    // AI Analysis elements
+    const aiAnalyzeBtn = document.getElementById('aiAnalyzeBtn');
+    const apiKeyBtn = document.getElementById('apiKeyBtn');
+    const aiResults = document.getElementById('aiResults');
+    const aiDescription = document.getElementById('aiDescription');
+    const aiError = document.getElementById('aiError');
+    const aiErrorMessage = document.getElementById('aiErrorMessage');
+    
+    // Modal elements
+    const apiKeyModal = document.getElementById('apiKeyModal');
+    const apiKeyInput = document.getElementById('apiKeyInput');
+    const saveKeyBtn = document.getElementById('saveKeyBtn');
+    const cancelBtn = document.getElementById('cancelBtn');
+    const modalClose = document.getElementById('modalClose');
 
     let images = [];
     let metadata = {};
@@ -199,7 +214,52 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch (error) {
             showError('Failed to load images and metadata: ' + error.message);
         }
-    }
+    });
+
+    // Event Listeners for AI Analysis
+    apiKeyBtn.addEventListener('click', () => {
+        apiKeyModal.classList.remove('hidden');
+    });
+
+    modalClose.addEventListener('click', () => {
+        apiKeyModal.classList.add('hidden');
+    });
+
+    cancelBtn.addEventListener('click', () => {
+        apiKeyModal.classList.add('hidden');
+    });
+
+    saveKeyBtn.addEventListener('click', async () => {
+        const apiKey = apiKeyInput.value.trim();
+        if (apiKey) {
+            // Set API Key in chrome storage
+            chrome.storage.local.set({ apiKey });
+            apiKeyModal.classList.add('hidden');
+            apiKeyInput.value = '';
+            alert('API Key saved successfully.');
+        }
+    });
+
+    aiAnalyzeBtn.addEventListener('click', async () => {
+        aiAnalyzeBtn.querySelector('.btn-text').textContent = 'Analyzing...';
+        aiAnalyzeBtn.querySelector('.btn-spinner').classList.remove('hidden');
+        aiAnalyzeBtn.disabled = true;
+        chrome.runtime.sendMessage({ action: 'analyzeScreenshot' }, (response) => {
+            aiAnalyzeBtn.querySelector('.btn-text').textContent = 'Analyze Product';
+            aiAnalyzeBtn.querySelector('.btn-spinner').classList.add('hidden');
+            aiAnalyzeBtn.disabled = false;
+
+            if (response.success) {
+                aiDescription.textContent = response.result.description;
+                aiResults.classList.remove('hidden');
+                aiError.classList.add('hidden');
+            } else {
+                aiErrorMessage.textContent = response.error || 'Failed to analyze product';
+                aiError.classList.remove('hidden');
+                aiResults.classList.add('hidden');
+            }
+        });
+    });
 
     loadPageData();
 });
