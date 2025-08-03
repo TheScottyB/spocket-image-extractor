@@ -6,8 +6,16 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": ["chrome", "extension", "spocket", "images"],
+  "keywords": [
+    "chrome",
+    "extension",
+    "spocket",
+    "images"
+  ],
   "author": "",
   "license": "ISC",
-  "packageManager": "pnpm@10.14.0"
+  "packageManager": "pnpm@10.14.0",
+  "dependencies": {
+    "openai": "^5.11.0"
+  }
 }

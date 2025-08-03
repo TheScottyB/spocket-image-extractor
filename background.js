@@ -1,5 +1,8 @@
 // Background service worker for Spocket Image Extractor
 
+// Import the AI agent (we'll load it dynamically)
+let ProductVisionAgent = null;
+
 class DownloadManager {
   constructor() {
     this.downloads = new Map();
@@ -149,6 +152,68 @@ class DownloadManager {
 // Initialize download manager
 const downloadManager = new DownloadManager();
 
+// AI Agent functions
+async function initializeAgent() {
+  try {
+    // Get API key from storage
+    const result = await chrome.storage.local.get(['openaiApiKey']);
+    if (!result.openaiApiKey) {
+      throw new Error('OpenAI API key not configured');
+    }
+    
+    // Load the agent script dynamically
+    if (!ProductVisionAgent) {
+      await import(chrome.runtime.getURL('agent.js')).then(module => {
+        ProductVisionAgent = module.default || window.ProductVisionAgent;
+      });
+    }
+    
+    return new ProductVisionAgent(result.openaiApiKey);
+  } catch (error) {
+    console.error('Failed to initialize AI agent:', error);
+    throw error;
+  }
+}
+
+async function analyzeScreenshot(tabId, metadata = {}) {
+  try {
+    const agent = await initializeAgent();
+    
+    // Capture screenshot
+    const dataUrl = await new Promise((resolve, reject) => {
+      chrome.tabs.captureVisibleTab(null, { format: 'png', quality: 90 }, (dataUrl) => {
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+        } else {
+          resolve(dataUrl);
+        }
+      });
+    });
+    
+    // Analyze with AI
+    const context = {
+      productName: metadata.productName,
+      existingDescription: metadata.productDescription,
+      productType: metadata.tags?.[0]
+    };
+    
+    const analysis = await agent.analyzeProductImage(dataUrl, context);
+    
+    return {
+      success: true,
+      analysis,
+      screenshot: dataUrl
+    };
+    
+  } catch (error) {
+    console.error('Screenshot analysis failed:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+}
+
 // Listen for messages from popup or content script
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   console.log('Background received message:', request.action);
@@ -165,6 +230,48 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       });
     
     return true; // Keep message channel open for async response
+  }
+  
+  if (request.action === 'analyzeScreenshot') {
+    analyzeScreenshot(sender.tab?.id, request.metadata)
+      .then(result => {
+        console.log('Screenshot analysis completed:', result);
+        sendResponse(result);
+      })
+      .catch(error => {
+        console.error('Screenshot analysis failed:', error);
+        sendResponse({ success: false, error: error.message });
+      });
+    
+    return true; // Keep message channel open for async response
+  }
+  
+  if (request.action === 'setApiKey') {
+    chrome.storage.local.set({ openaiApiKey: request.apiKey })
+      .then(() => {
+        sendResponse({ success: true, message: 'API key saved' });
+      })
+      .catch(error => {
+        sendResponse({ success: false, error: error.message });
+      });
+    
+    return true;
+  }
+  
+  if (request.action === 'getApiKey') {
+    chrome.storage.local.get(['openaiApiKey'])
+      .then(result => {
+        sendResponse({ 
+          success: true, 
+          hasApiKey: !!result.openaiApiKey,
+          apiKey: result.openaiApiKey ? result.openaiApiKey.substring(0, 10) + '...' : null
+        });
+      })
+      .catch(error => {
+        sendResponse({ success: false, error: error.message });
+      });
+    
+    return true;
   }
   
   if (request.action === 'ping') {
