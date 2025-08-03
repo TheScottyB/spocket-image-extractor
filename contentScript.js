@@ -229,24 +229,38 @@ class SpocketExtractor {
       }
     }
 
-    // Prices for you pay and you sell (specific selector first)
-    const priceElements = document.querySelectorAll('h3.sc-eZkCL.lmgIAS');
-    if (priceElements.length > 1) {  
+    // Extract prices - look for price-related elements more broadly
+    const priceSelectors = [
+      '[data-testid="product-price"]',
+      '.price',
+      '.product-price',
+      '[class*="price"]',
+      '.cost',
+      'span[class*="price"]',
+      'div[class*="price"]'
+    ];
+    
+    // Try to find price elements that contain $ or currency symbols
+    const allElements = document.querySelectorAll('*');
+    const priceElements = [];
+    
+    allElements.forEach(el => {
+      const text = el.textContent.trim();
+      if (text.match(/\$\d+\.\d{2}/) && el.children.length === 0) { // Price pattern and no child elements
+        priceElements.push(el);
+      }
+    });
+    
+    if (priceElements.length >= 2) {
+      metadata.price = priceElements[0].textContent.trim(); // You pay
+      metadata.sellingPrice = priceElements[1].textContent.trim(); // You sell
+    } else if (priceElements.length === 1) {
       metadata.price = priceElements[0].textContent.trim();
-      metadata.sellingPrice = priceElements[1].textContent.trim();
     } else {
       // Fallback to generic price selectors
-      const priceSelectors = [
-        '[data-testid="product-price"]',
-        '.price',
-        '.product-price',
-        '[class*="price"]',
-        '.cost'
-      ];
-      
       for (const selector of priceSelectors) {
         const element = document.querySelector(selector);
-        if (element && element.textContent.trim()) {
+        if (element && element.textContent.trim() && element.textContent.includes('$')) {
           metadata.price = element.textContent.trim();
           break;
         }
