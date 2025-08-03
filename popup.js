@@ -255,32 +255,33 @@ document.addEventListener('DOMContentLoaded', function() {
     // Event Listeners for AI Analysis
     apiKeyBtn.addEventListener('click', () => {
         console.log('Opening API key modal');
-        apiKeyModal.classList.remove('hidden');
+        apiKeyModal.style.display = 'flex';
     });
 
     modalClose.addEventListener('click', (e) => {
         console.log('Modal close button clicked');
         e.preventDefault();
         e.stopPropagation();
-        apiKeyModal.classList.add('hidden');
+        apiKeyModal.style.display = 'none';
     });
 
     cancelBtn.addEventListener('click', (e) => {
         console.log('Cancel button clicked');
         e.preventDefault();
         e.stopPropagation();
-        apiKeyModal.classList.add('hidden');
+        apiKeyModal.style.display = 'none';
     });
 
     // Close modal when clicking outside of it
     apiKeyModal.addEventListener('click', (e) => {
         console.log('Modal background clicked');
         if (e.target === apiKeyModal) {
-            apiKeyModal.classList.add('hidden');
+            apiKeyModal.style.display = 'none';
         }
     });
 
     saveKeyBtn.addEventListener('click', async (e) => {
+        console.log('Save button clicked');
         e.preventDefault();
         e.stopPropagation();
         const apiKey = apiKeyInput.value.trim();
@@ -288,7 +289,7 @@ document.addEventListener('DOMContentLoaded', function() {
             try {
                 // Set API Key in chrome storage
                 await chrome.storage.local.set({ apiKey });
-                apiKeyModal.classList.add('hidden');
+                apiKeyModal.style.display = 'none';
                 apiKeyInput.value = '';
                 console.log('API Key saved successfully');
                 // Use a more subtle notification instead of alert
