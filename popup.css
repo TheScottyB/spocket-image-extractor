@@ -212,6 +212,7 @@ button:hover:not(:disabled) {
     display: flex;
     gap: 8px;
     margin-bottom: 10px;
+    flex-wrap: wrap;
 }
 
 .ai-analyze-btn {
@@ -221,6 +222,26 @@ button:hover:not(:disabled) {
     align-items: center;
     justify-content: center;
     gap: 8px;
+}
+
+.vision-extract-btn {
+    flex: 1;
+    background-color: #17a2b8;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-size: 12px;
+    padding: 6px 10px;
+}
+
+.vision-extract-btn:hover:not(:disabled) {
+    background-color: #138496;
+}
+
+.vision-extract-btn:disabled {
+    background-color: #6c757d;
 }
 
 .ai-analyze-btn:hover:not(:disabled) {

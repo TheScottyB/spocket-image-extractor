@@ -57,6 +57,10 @@
                             <label>Marketplace:</label>
                             <span id="marketplaceInfo">-</span>
                         </div>
+                        <div class="metadata-item full-width" id="syncInfoContainer" style="display: none;">
+                            <label>Data Source:</label>
+                            <span id="syncInfo">-</span>
+                        </div>
                     </div>
                 </div>
 
@@ -66,6 +70,10 @@
                     <div class="ai-controls">
                         <button class="ai-analyze-btn" id="aiAnalyzeBtn">
                             <span class="btn-text">Analyze Product</span>
+                            <div class="btn-spinner hidden"></div>
+                        </button>
+                        <button class="vision-extract-btn" id="visionExtractBtn">
+                            <span class="btn-text">🔍 Vision Extract</span>
                             <div class="btn-spinner hidden"></div>
                         </button>
                         <button class="api-key-btn" id="apiKeyBtn">Set API Key</button>

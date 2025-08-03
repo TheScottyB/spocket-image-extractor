@@ -19,11 +19,14 @@ document.addEventListener('DOMContentLoaded', function() {
     const storeStatusContainer = document.getElementById('storeStatusContainer');
     const marketplaceInfoElement = document.getElementById('marketplaceInfo');
     const marketplaceContainer = document.getElementById('marketplaceContainer');
+    const syncInfoElement = document.getElementById('syncInfo');
+    const syncInfoContainer = document.getElementById('syncInfoContainer');
     const selectedCountElement = document.getElementById('selectedCount');
     const downloadBtn = document.getElementById('downloadBtn');
     const selectAllBtn = document.getElementById('selectAllBtn');
     const deselectAllBtn = document.getElementById('deselectAllBtn');
     const forceRetryBtn = document.getElementById('forceRetryBtn');
+    const visionExtractBtn = document.getElementById('visionExtractBtn');
     
     // AI Analysis elements
     const aiAnalyzeBtn = document.getElementById('aiAnalyzeBtn');
@@ -314,8 +317,8 @@ document.addEventListener('DOMContentLoaded', function() {
             const apiKey = apiKeyInput.value.trim();
             if (apiKey) {
                 try {
-                    // Set API Key in chrome storage
-                    await chrome.storage.local.set({ apiKey });
+                    // Set API Key in chrome storage (using sync storage and correct key name)
+                    await chrome.storage.sync.set({ openaiApiKey: apiKey });
                     apiKeyModal.style.display = 'none';
                     apiKeyInput.value = '';
                     console.log('API Key saved successfully');
@@ -418,5 +421,71 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     loadPageData();
+
+    if (visionExtractBtn) {
+        visionExtractBtn.addEventListener('click', async function() {
+            const btnText = visionExtractBtn.querySelector('.btn-text');
+            const btnSpinner = visionExtractBtn.querySelector('.btn-spinner');
+
+            if (btnText) btnText.textContent = '🔍 Extracting...';
+            if (btnSpinner) btnSpinner.classList.remove('hidden');
+            visionExtractBtn.disabled = true;
+
+            try {
+                const data = await sendMessageToContentScript({ action: 'extractWithVision' });
+                if (data.error) {
+                    showError(`Vision extraction failed: ${data.error}`);
+                    return;
+                }
+
+                images = data.images || [];
+                metadata = data.metadata || {};
+
+                // Clear current selections
+                selectedImages.clear();
+
+                // Update metadata display
+                if (productNameElement) productNameElement.textContent = metadata.productName || 'N/A';
+                if (vendorNameElement) vendorNameElement.textContent = metadata.vendorName || 'N/A';
+                if (priceElement) priceElement.textContent = metadata.price || 'N/A';
+                if (productIdElement) productIdElement.textContent = metadata.productId || 'N/A';
+
+                // Show/hide optional metadata fields
+                if (metadata.storeStatus) {
+                    if (storeStatusElement) storeStatusElement.textContent = metadata.storeStatus;
+                    if (storeStatusContainer) storeStatusContainer.style.display = 'block';
+                } else {
+                    if (storeStatusContainer) storeStatusContainer.style.display = 'none';
+                }
+
+                if (metadata.marketplaceInfo) {
+                    if (marketplaceInfoElement) marketplaceInfoElement.textContent = metadata.marketplaceInfo;
+                    if (marketplaceContainer) marketplaceContainer.style.display = 'block';
+                } else {
+                    if (marketplaceContainer) marketplaceContainer.style.display = 'none';
+                }
+
+                if (metadata.synchronizationInfo) {
+                    if (syncInfoElement) syncInfoElement.textContent = metadata.synchronizationInfo.method;
+                    if (syncInfoContainer) syncInfoContainer.style.display = 'block';
+                } else {
+                    if (syncInfoContainer) syncInfoContainer.style.display = 'none';
+                }
+
+                // Render images
+                renderImages(images);
+                showMainContent();
+
+                showNotification(`Vision extraction completed! Found ${images.length} images.`);
+
+            } catch (error) {
+                showError('Vision extraction failed: ' + error.message);
+            } finally {
+                if (btnText) btnText.textContent = '🔍 Vision Extract';
+                if (btnSpinner) btnSpinner.classList.add('hidden');
+                visionExtractBtn.disabled = false;
+            }
+        });
+    }
 });
 

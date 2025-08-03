@@ -14,7 +14,8 @@
   
   "host_permissions": [
     "https://app.spocket.co/*",
-    "https://d2nxps5jx3f309.cloudfront.net/*"
+    "https://d2nxps5jx3f309.cloudfront.net/*",
+    "https://api.openai.com/*"
   ],
   
   "background": {
@@ -24,7 +25,7 @@
   "content_scripts": [
     {
       "matches": ["https://app.spocket.co/product/*"],
-      "js": ["contentScript.js"],
+      "js": ["visionAPI.js", "dom_agent.js", "data_synchronizer.js", "contentScript.js"],
       "run_at": "document_idle"
     }
   ],

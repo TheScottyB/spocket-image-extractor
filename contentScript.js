@@ -12,10 +12,13 @@ class SpocketExtractor {
     this.extractionAttempts = 0;
     this.domAgent = null;
     this.visionDataCache = new Map();
+    this.dataSynchronizer = null;
+    this.visionApiKey = null; // Will be set from storage
     
-    // Initialize MutationObserver for dynamic content
+    // Initialize components
     this.initMutationObserver();
     this.initDOMAgent();
+    this.initDataSynchronizer();
   }
   
   initMutationObserver() {
@@ -34,6 +37,17 @@ class SpocketExtractor {
         this.debounceExtraction();
       }
     });
+  }
+  
+  initDOMAgent() {
+    // Placeholder for DOM Agent initialization
+    // This would be integrated when DOM Agent is fully implemented
+    if (typeof DOMAgent !== 'undefined') {
+      this.domAgent = new DOMAgent({ debug: this.debug });
+      if (this.debug) console.log('SpocketExtractor: DOMAgent initialized');
+    } else {
+      if (this.debug) console.log('SpocketExtractor: DOMAgent not available');
+    }
   }
   
   startObserving() {
@@ -622,13 +636,41 @@ class SpocketExtractor {
     return metadata;
   }
 
+  // Initialize Data Synchronizer
+  async initDataSynchronizer() {
+    try {
+      // Get API key from storage
+      const result = await chrome.storage.sync.get(['openaiApiKey']);
+      this.visionApiKey = result.openaiApiKey;
+      
+      if (typeof DataSynchronizer !== 'undefined') {
+        this.dataSynchronizer = new DataSynchronizer({
+          debug: this.debug,
+          visionApiKey: this.visionApiKey,
+          confidenceThreshold: 0.7,
+          retryAttempts: 3
+        });
+        
+        if (this.debug) {
+          console.log('SpocketExtractor: DataSynchronizer initialized');
+          console.log('Vision API available:', !!this.visionApiKey);
+        }
+      } else {
+        if (this.debug) console.log('SpocketExtractor: DataSynchronizer not available');
+      }
+    } catch (error) {
+      console.error('SpocketExtractor: Failed to initialize DataSynchronizer:', error);
+    }
+  }
+
   // Clean filename for safe file system usage
   sanitizeFilename(filename) {
     return filename.replace(/[<>:"/\\|?*]/g, '_').replace(/\s+/g, '_');
   }
 
-  async extractAll() {
-    console.log('Spocket Extractor: Starting extraction...');
+  // Enhanced extraction with data synchronization
+  async extractAllSynchronized(forceVisionAnalysis = false) {
+    console.log('Spocket Extractor: Starting synchronized extraction...');
     
     // Wait for images to load
     const imagesFound = await this.waitForImages();
@@ -638,14 +680,74 @@ class SpocketExtractor {
       return { images: [], metadata: this.extractMetadata() };
     }
 
-    // Extract images and metadata
+    // Extract images first
     const images = this.extractImages();
-    const metadata = this.extractMetadata();
+    
+    // Use synchronized metadata extraction if available
+    let metadata;
+    if (this.dataSynchronizer) {
+      try {
+        if (this.debug) console.log('Using DataSynchronizer for metadata extraction');
+        
+        // Get basic DOM metadata first
+        const domMetadata = this.extractMetadata();
+        
+        // Synchronize with vision data
+        const syncResult = await this.dataSynchronizer.synchronizeData(
+          domMetadata, 
+          null, 
+          forceVisionAnalysis
+        );
+        
+        if (syncResult.success) {
+          metadata = {
+            ...syncResult.data,
+            // Preserve original fields that aren't handled by synchronizer
+            productId: domMetadata.productId,
+            extractedAt: domMetadata.extractedAt,
+            pageUrl: domMetadata.pageUrl,
+            // Add synchronization info
+            synchronizationInfo: {
+              method: 'synchronized',
+              sources: syncResult.sources,
+              timestamp: syncResult.timestamp,
+              overallConfidence: syncResult.sources.confidence
+            }
+          };
+          
+          if (this.debug) {
+            console.log('Synchronized metadata extraction completed');
+            console.log('Data sources used:', syncResult.sources);
+          }
+        } else {
+          console.warn('Synchronization failed, falling back to DOM-only extraction:', syncResult.error);
+          metadata = domMetadata;
+        }
+        
+      } catch (error) {
+        console.error('Synchronized extraction failed:', error);
+        metadata = this.extractMetadata();
+      }
+    } else {
+      // Fallback to regular extraction
+      if (this.debug) console.log('DataSynchronizer not available, using DOM-only extraction');
+      metadata = this.extractMetadata();
+    }
     
     console.log('Spocket Extractor: Found', images.length, 'images');
     console.log('Spocket Extractor: Metadata:', metadata);
     
     return { images, metadata };
+  }
+
+  // Legacy extraction method (for backwards compatibility)
+  async extractAll() {
+    return this.extractAllSynchronized(false);
+  }
+  
+  // Force vision analysis extraction
+  async extractWithVision() {
+    return this.extractAllSynchronized(true);
   }
 }
 
@@ -682,6 +784,16 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'stopObserving') {
     extractor.stopObserving();
     sendResponse({ success: true });
+  }
+  
+  if (request.action === 'extractWithVision') {
+    extractor.extractWithVision().then(data => {
+      sendResponse(data);
+    }).catch(error => {
+      console.error('Spocket Extractor Vision Error:', error);
+      sendResponse({ error: error.message, images: [], metadata: {} });
+    });
+    return true; // Keep message channel open for async response
   }
 });
 
