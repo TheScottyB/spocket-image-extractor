@@ -34,28 +34,67 @@ class SpocketExtractor {
   }
 
   extractImages() {
-    const imageElements = document.querySelectorAll('.ril-image-next, .ril__imageNext, .ril__image');
     const uniqueUrls = new Set();
+    this.images = []; // Reset images array
     
-    imageElements.forEach((img, index) => {
+    // 1. Look for React Image Lightbox images (original approach)
+    const rilImages = document.querySelectorAll('.ril-image-next, .ril__imageNext, .ril__image');
+    rilImages.forEach((img, index) => {
       const src = img.src;
       if (src && src.includes('d2nxps5jx3f309.cloudfront.net') && !uniqueUrls.has(src)) {
         uniqueUrls.add(src);
         
-        // Extract filename from URL
         const urlParts = src.split('/');
-        const filename = urlParts[urlParts.length - 1] || `image_${index + 1}.jpg`;
+        const filename = urlParts[urlParts.length - 1] || `lightbox_image_${index + 1}.jpg`;
         
         this.images.push({
           url: src,
           filename: filename,
-          index: index,
-          alt: img.alt || `Image ${index + 1}`
+          index: this.images.length,
+          alt: img.alt || `Lightbox Image ${index + 1}`,
+          type: 'lightbox'
         });
       }
     });
     
-    // Also check for any other product images that might not have the exact classes
+    // 2. Look for feature/main product image
+    const featureImage = document.querySelector('[data-testid="feature-image"], .sc-kNvTSQ.fXwRYd');
+    if (featureImage && featureImage.src && featureImage.src.includes('d2nxps5jx3f309.cloudfront.net') && !uniqueUrls.has(featureImage.src)) {
+      uniqueUrls.add(featureImage.src);
+      
+      const urlParts = featureImage.src.split('/');
+      const filename = urlParts[urlParts.length - 1] || 'featured_image.jpg';
+      
+      this.images.push({
+        url: featureImage.src,
+        filename: filename,
+        index: this.images.length,
+        alt: featureImage.alt || 'Featured Product Image',
+        type: 'featured'
+      });
+    }
+    
+    // 3. Look for thumbnail images
+    const thumbnailImages = document.querySelectorAll('.sc-entYTK.knWYHm, [alt="thumbnail image"]');
+    thumbnailImages.forEach((img, index) => {
+      const src = img.src;
+      if (src && src.includes('d2nxps5jx3f309.cloudfront.net') && !uniqueUrls.has(src)) {
+        uniqueUrls.add(src);
+        
+        const urlParts = src.split('/');
+        const filename = urlParts[urlParts.length - 1] || `thumbnail_${index + 1}.jpg`;
+        
+        this.images.push({
+          url: src,
+          filename: filename,
+          index: this.images.length,
+          alt: img.alt || `Thumbnail ${index + 1}`,
+          type: 'thumbnail'
+        });
+      }
+    });
+    
+    // 4. Fallback: Check for any other product images from the CDN
     const allImages = document.querySelectorAll('img[src*="d2nxps5jx3f309.cloudfront.net"]');
     allImages.forEach((img, index) => {
       const src = img.src;
@@ -63,13 +102,14 @@ class SpocketExtractor {
         uniqueUrls.add(src);
         
         const urlParts = src.split('/');
-        const filename = urlParts[urlParts.length - 1] || `additional_image_${index + 1}.jpg`;
+        const filename = urlParts[urlParts.length - 1] || `product_image_${index + 1}.jpg`;
         
         this.images.push({
           url: src,
           filename: filename,
           index: this.images.length,
-          alt: img.alt || `Additional Image ${index + 1}`
+          alt: img.alt || `Product Image ${index + 1}`,
+          type: 'general'
         });
       }
     });
@@ -81,10 +121,13 @@ class SpocketExtractor {
     const metadata = {
       productId: this.productId,
       productName: '',
+      productDescription: '',
       vendorName: '',
       price: '',
       shippingInfo: '',
       timeframes: '',
+      marketplaceInfo: '',
+      tags: [],
       extractedAt: new Date().toISOString(),
       pageUrl: window.location.href
     };
@@ -92,10 +135,11 @@ class SpocketExtractor {
     // Try different selectors for product name
     const productNameSelectors = [
       'h1[data-testid="product-title"]',
-      'h1.product-title',
+      'h1.product-title', 
       'h1',
       '[data-testid="product-name"]',
-      '.product-name'
+      '.product-name',
+      'h1.sc-eZkCL.lmgIAS' // Based on the HTML structure
     ];
     
     for (const selector of productNameSelectors) {
@@ -106,11 +150,58 @@ class SpocketExtractor {
       }
     }
 
+    // Extract product description from the description section
+    const descriptionSelectors = [
+      '.sc-cmaqmh.sc-fJKILO.kOUXxd.dUyFgg p',
+      '[class*="product-description"] p',
+      '.product-description p',
+      'section p'
+    ];
+    
+    let descriptionParts = [];
+    for (const selector of descriptionSelectors) {
+      const elements = document.querySelectorAll(selector);
+      if (elements.length > 0) {
+        elements.forEach(el => {
+          const text = el.textContent.trim();
+          if (text && !text.startsWith('#') && text.length > 10) {
+            descriptionParts.push(text);
+          }
+        });
+        if (descriptionParts.length > 0) break;
+      }
+    }
+    metadata.productDescription = descriptionParts.join('\n\n');
+
+    // Extract tags from description (hashtags)
+    const tagRegex = /#(\w+)/g;
+    const fullText = document.body.textContent;
+    let tagMatch;
+    while ((tagMatch = tagRegex.exec(fullText)) !== null) {
+      if (!metadata.tags.includes(tagMatch[1])) {
+        metadata.tags.push(tagMatch[1]);
+      }
+    }
+
+    // Extract marketplace availability info
+    const marketplaceElement = document.querySelector('.sc-iRfNzj.bBfjaY');
+    if (marketplaceElement) {
+      metadata.marketplaceInfo = marketplaceElement.textContent.trim();
+    }
+
+    // Check if item is pushed to store
+    const pushedElement = document.querySelector('[data-cy="pushed-tag"]');
+    if (pushedElement) {
+      metadata.inStore = true;
+      const storeText = pushedElement.textContent.trim();
+      metadata.storeStatus = storeText;
+    }
+
     // Try different selectors for vendor/supplier name
     const vendorSelectors = [
       '[data-testid="supplier-name"]',
       '.supplier-name',
-      '.vendor-name',
+      '.vendor-name', 
       '[class*="supplier"]',
       '[class*="vendor"]'
     ];

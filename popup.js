@@ -15,6 +15,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const vendorNameElement = document.getElementById('vendorName');
     const priceElement = document.getElementById('price');
     const productIdElement = document.getElementById('productId');
+    const storeStatusElement = document.getElementById('storeStatus');
+    const storeStatusContainer = document.getElementById('storeStatusContainer');
+    const marketplaceInfoElement = document.getElementById('marketplaceInfo');
+    const marketplaceContainer = document.getElementById('marketplaceContainer');
     const selectedCountElement = document.getElementById('selectedCount');
     const downloadBtn = document.getElementById('downloadBtn');
     const selectAllBtn = document.getElementById('selectAllBtn');
@@ -173,6 +177,21 @@ document.addEventListener('DOMContentLoaded', function() {
             vendorNameElement.textContent = metadata.vendorName || 'N/A';
             priceElement.textContent = metadata.price || 'N/A';
             productIdElement.textContent = metadata.productId || 'N/A';
+            
+            // Show/hide optional metadata fields
+            if (metadata.storeStatus) {
+                storeStatusElement.textContent = metadata.storeStatus;
+                storeStatusContainer.style.display = 'block';
+            } else {
+                storeStatusContainer.style.display = 'none';
+            }
+            
+            if (metadata.marketplaceInfo) {
+                marketplaceInfoElement.textContent = metadata.marketplaceInfo;
+                marketplaceContainer.style.display = 'block';
+            } else {
+                marketplaceContainer.style.display = 'none';
+            }
 
             // Render images
             renderImages(images);

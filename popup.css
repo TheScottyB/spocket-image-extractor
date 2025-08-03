@@ -71,6 +71,10 @@ body {
     white-space: nowrap;
 }
 
+.metadata-item.full-width {
+    grid-column: 1 / -1;
+}
+
 .images-section {
     border-top: 1px solid #eaeaea;
     padding-top: 10px;
