@@ -214,7 +214,7 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch (error) {
             showError('Failed to load images and metadata: ' + error.message);
         }
-    });
+    }
 
     // Event Listeners for AI Analysis
     apiKeyBtn.addEventListener('click', () => {
