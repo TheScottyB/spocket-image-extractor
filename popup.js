@@ -38,6 +38,15 @@ document.addEventListener('DOMContentLoaded', function() {
     const saveKeyBtn = document.getElementById('saveKeyBtn');
     const cancelBtn = document.getElementById('cancelBtn');
     const modalClose = document.getElementById('modalClose');
+    
+    // Debug: Check if elements exist
+    console.log('Modal elements found:', {
+        apiKeyModal: !!apiKeyModal,
+        apiKeyInput: !!apiKeyInput,
+        saveKeyBtn: !!saveKeyBtn,
+        cancelBtn: !!cancelBtn,
+        modalClose: !!modalClose
+    });
 
     let images = [];
     let metadata = {};
@@ -245,14 +254,19 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Event Listeners for AI Analysis
     apiKeyBtn.addEventListener('click', () => {
+        console.log('Opening API key modal');
         apiKeyModal.classList.remove('hidden');
     });
 
-    modalClose.addEventListener('click', () => {
+    modalClose.addEventListener('click', (e) => {
+        console.log('Modal close button clicked');
+        e.preventDefault();
+        e.stopPropagation();
         apiKeyModal.classList.add('hidden');
     });
 
     cancelBtn.addEventListener('click', (e) => {
+        console.log('Cancel button clicked');
         e.preventDefault();
         e.stopPropagation();
         apiKeyModal.classList.add('hidden');
@@ -260,6 +274,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Close modal when clicking outside of it
     apiKeyModal.addEventListener('click', (e) => {
+        console.log('Modal background clicked');
         if (e.target === apiKeyModal) {
             apiKeyModal.classList.add('hidden');
         }
