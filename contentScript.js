@@ -123,10 +123,16 @@ class SpocketExtractor {
       productName: '',
       productDescription: '',
       vendorName: '',
+      supplierLink: '',
       price: '',
+      sellingPrice: '',
+      processingTime: '',
       shippingInfo: '',
+      shippingDetails: [],
       timeframes: '',
       marketplaceInfo: '',
+      returnPolicy: '',
+      paymentMethods: [],
       tags: [],
       extractedAt: new Date().toISOString(),
       pageUrl: window.location.href
@@ -134,6 +140,7 @@ class SpocketExtractor {
 
     // Try different selectors for product name
     const productNameSelectors = [
+      'h3[data-cy="listing-detail-modal-title"]', // From second HTML structure
       'h1[data-testid="product-title"]',
       'h1.product-title', 
       'h1',
@@ -183,52 +190,71 @@ class SpocketExtractor {
       }
     }
 
+    // Check if item is pushed to store
+    const pushedElement = document.querySelector('[data-cy="pushed-tag"], .sc-jgtTJd.jmRLXz');
+    if (pushedElement) {
+      metadata.inStore = true;
+      metadata.storeStatus = pushedElement.textContent.trim();
+    }
+
     // Extract marketplace availability info
     const marketplaceElement = document.querySelector('.sc-iRfNzj.bBfjaY');
     if (marketplaceElement) {
       metadata.marketplaceInfo = marketplaceElement.textContent.trim();
     }
 
-    // Check if item is pushed to store
-    const pushedElement = document.querySelector('[data-cy="pushed-tag"]');
-    if (pushedElement) {
-      metadata.inStore = true;
-      const storeText = pushedElement.textContent.trim();
-      metadata.storeStatus = storeText;
-    }
-
-    // Try different selectors for vendor/supplier name
-    const vendorSelectors = [
-      '[data-testid="supplier-name"]',
-      '.supplier-name',
-      '.vendor-name', 
-      '[class*="supplier"]',
-      '[class*="vendor"]'
-    ];
-    
-    for (const selector of vendorSelectors) {
-      const element = document.querySelector(selector);
-      if (element && element.textContent.trim()) {
-        metadata.vendorName = element.textContent.trim();
-        break;
+    // Supplier link extraction (priority over generic vendor selectors)
+    const supplierLinkElement = document.querySelector('.supplier-link');
+    if (supplierLinkElement) {
+      metadata.vendorName = supplierLinkElement.textContent.trim();
+      metadata.supplierLink = supplierLinkElement.href;
+    } else {
+      // Fallback to generic vendor selectors
+      const vendorSelectors = [
+        '[data-testid="supplier-name"]',
+        '.supplier-name',
+        '.vendor-name', 
+        '[class*="supplier"]',
+        '[class*="vendor"]'
+      ];
+      
+      for (const selector of vendorSelectors) {
+        const element = document.querySelector(selector);
+        if (element && element.textContent.trim()) {
+          metadata.vendorName = element.textContent.trim();
+          break;
+        }
       }
     }
 
-    // Try different selectors for price
-    const priceSelectors = [
-      '[data-testid="product-price"]',
-      '.price',
-      '.product-price',
-      '[class*="price"]',
-      '.cost'
-    ];
-    
-    for (const selector of priceSelectors) {
-      const element = document.querySelector(selector);
-      if (element && element.textContent.trim()) {
-        metadata.price = element.textContent.trim();
-        break;
+    // Prices for you pay and you sell (specific selector first)
+    const priceElements = document.querySelectorAll('h3.sc-eZkCL.lmgIAS');
+    if (priceElements.length > 1) {  
+      metadata.price = priceElements[0].textContent.trim();
+      metadata.sellingPrice = priceElements[1].textContent.trim();
+    } else {
+      // Fallback to generic price selectors
+      const priceSelectors = [
+        '[data-testid="product-price"]',
+        '.price',
+        '.product-price',
+        '[class*="price"]',
+        '.cost'
+      ];
+      
+      for (const selector of priceSelectors) {
+        const element = document.querySelector(selector);
+        if (element && element.textContent.trim()) {
+          metadata.price = element.textContent.trim();
+          break;
+        }
       }
+    }
+
+    // Processing time extraction
+    const processingTimeElement = document.querySelector('.sc-cmaqmh.ihBHZO');
+    if (processingTimeElement && processingTimeElement.textContent.includes('business days')) {
+      metadata.processingTime = processingTimeElement.textContent.trim();
     }
 
     // Try to find shipping information
@@ -247,7 +273,7 @@ class SpocketExtractor {
       }
     }
 
-    // Try to find timeframe information
+    // Try to find timeframe information  
     const timeframeSelectors = [
       '[data-testid="delivery-time"]',
       '.delivery-time',
@@ -263,6 +289,26 @@ class SpocketExtractor {
         break;
       }
     }
+
+    // Extract return policies
+    const returnPolicyElement = document.querySelector('.sc-cmaqmh.kOUXxd');
+    if (returnPolicyElement && returnPolicyElement.textContent.length > 50) {
+      metadata.returnPolicy = returnPolicyElement.textContent.trim();
+    }
+
+    // Payment methods
+    const paymentMethods = Array.from(document.querySelectorAll('.sc-dUSDBE img')).map(img => img.alt);
+    metadata.paymentMethods = paymentMethods;
+
+    // Shipping details extraction
+    const shippingDivs = document.querySelectorAll('.sc-fDpJdc.cFpoNJ');
+    shippingDivs.forEach(div => {
+      const region = div.querySelector('.sc-hiEoHn.kOUXxd') ? div.querySelector('.sc-hiEoHn.kOUXxd').textContent.trim() : '';
+      const timeText = div.querySelector('.sc-ksJxCS.kOUXxd') ? div.querySelector('.sc-ksJxCS.kOUXxd').textContent.trim() : '';
+      if (region || timeText) {
+        metadata.shippingDetails.push({ region, timeText });
+      }
+    });
 
     this.metadata = metadata;
     return metadata;
