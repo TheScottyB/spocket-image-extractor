@@ -124,6 +124,33 @@ document.addEventListener('DOMContentLoaded', function() {
         successSummary.innerHTML = `Successfully downloaded ${successCount} images and metadata.`;
     }
 
+    function showNotification(message, type = 'success') {
+        // Create a temporary notification element
+        const notification = document.createElement('div');
+        notification.style.cssText = `
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            padding: 10px 15px;
+            border-radius: 4px;
+            color: white;
+            font-size: 13px;
+            z-index: 10000;
+            max-width: 250px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            background-color: ${type === 'error' ? '#dc3545' : '#28a745'};
+        `;
+        notification.textContent = message;
+        document.body.appendChild(notification);
+        
+        // Remove after 3 seconds
+        setTimeout(() => {
+            if (document.body.contains(notification)) {
+                document.body.removeChild(notification);
+            }
+        }, 3000);
+    }
+
     retryBtn.addEventListener('click', function() {
         loadPageData();
     });
@@ -225,18 +252,38 @@ document.addEventListener('DOMContentLoaded', function() {
         apiKeyModal.classList.add('hidden');
     });
 
-    cancelBtn.addEventListener('click', () => {
+    cancelBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
         apiKeyModal.classList.add('hidden');
     });
 
-    saveKeyBtn.addEventListener('click', async () => {
+    // Close modal when clicking outside of it
+    apiKeyModal.addEventListener('click', (e) => {
+        if (e.target === apiKeyModal) {
+            apiKeyModal.classList.add('hidden');
+        }
+    });
+
+    saveKeyBtn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
         const apiKey = apiKeyInput.value.trim();
         if (apiKey) {
-            // Set API Key in chrome storage
-            chrome.storage.local.set({ apiKey });
-            apiKeyModal.classList.add('hidden');
-            apiKeyInput.value = '';
-            alert('API Key saved successfully.');
+            try {
+                // Set API Key in chrome storage
+                await chrome.storage.local.set({ apiKey });
+                apiKeyModal.classList.add('hidden');
+                apiKeyInput.value = '';
+                console.log('API Key saved successfully');
+                // Use a more subtle notification instead of alert
+                showNotification('API Key saved successfully!');
+            } catch (error) {
+                console.error('Failed to save API key:', error);
+                showNotification('Failed to save API Key', 'error');
+            }
+        } else {
+            showNotification('Please enter a valid API Key', 'error');
         }
     });
 
